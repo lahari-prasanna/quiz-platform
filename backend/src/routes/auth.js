@@ -8,10 +8,7 @@ const User = require('../models/User');
 
 const createTransporter = () => nodemailer.createTransport({
   service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
   connectionTimeout: 10000,
   greetingTimeout: 10000,
   socketTimeout: 15000,
@@ -52,15 +49,28 @@ router.post('/google', async (req, res) => {
   try {
     const { name, email, googleId, role } = req.body;
     let user = await User.findOne({ email });
-    const isNewUser = !user;
+
     if (!user) {
-      user = await User.create({ name, email, password: googleId, role: role || 'student' });
-    } else if (role && user.role !== role && isNewUser === false) {
-      user.role = role;
-      await user.save();
+      // Brand new user — role modal నుండి వచ్చిన role తో create చేయండి
+      user = await User.create({
+        name, email, password: googleId,
+        role: role || 'student'
+      });
+      const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      return res.json({
+        token,
+        user: { id: user._id, name: user.name, role: user.role },
+        isNewUser: true
+      });
+    } else {
+      // Existing user — DB లో ఉన్న role ని USE చేయండి, NEVER override చేయకండి
+      const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      return res.json({
+        token,
+        user: { id: user._id, name: user.name, role: user.role },
+        isNewUser: false
+      });
     }
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user._id, name: user.name, role: user.role }, isNewUser });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -71,10 +81,7 @@ router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.json({ msg: 'If this email exists, a reset link has been sent' });
-    }
+    if (!user) return res.json({ msg: 'If this email exists, a reset link has been sent' });
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     user.resetToken = resetToken;
@@ -84,10 +91,9 @@ router.post('/forgot-password', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
-    // Email async గా send చేయండి — response wait చేయకుండా
+    // Response immediately — email background లో send చేయండి
     res.json({ msg: 'If this email exists, a reset link has been sent' });
 
-    // Background లో email send చేయండి
     const transporter = createTransporter();
     transporter.sendMail({
       from: `"QuizAI Platform" <${process.env.EMAIL_USER}>`,
@@ -103,31 +109,20 @@ router.post('/forgot-password', async (req, res) => {
             <p style="color: #555;">Hi ${user.name},</p>
             <p style="color: #555;">Click the button below to reset your password:</p>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetUrl}"
-                style="background: linear-gradient(135deg, #2563eb, #059669); color: white; padding: 14px 32px;
-                       text-decoration: none; border-radius: 8px; font-size: 16px;">
+              <a href="${resetUrl}" style="background: linear-gradient(135deg, #2563eb, #059669); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-size: 16px;">
                 Reset Password
               </a>
             </div>
-            <p style="color: #888; font-size: 13px;">
-              This link expires in <strong>30 minutes</strong>.<br/>
-              If you didn't request this, ignore this email.
-            </p>
+            <p style="color: #888; font-size: 13px;">This link expires in <strong>30 minutes</strong>.<br/>If you didn't request this, ignore this email.</p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="color: #aaa; font-size: 12px; text-align: center;">
-              QuizAI Platform — RGUKT RK Valley · CSE Department
-            </p>
+            <p style="color: #aaa; font-size: 12px; text-align: center;">QuizAI Platform — RGUKT RK Valley · CSE Department</p>
           </div>
         </div>
       `
-    }).then(() => {
-      console.log(`✅ Reset email sent to ${email}`);
-    }).catch((err) => {
-      console.error(`❌ Email send failed: ${err.message}`);
-    });
+    }).then(() => console.log(`✅ Reset email sent to ${email}`))
+      .catch(err => console.error(`❌ Email failed: ${err.message}`));
 
   } catch (err) {
-    console.error('Forgot password error:', err);
     res.status(500).json({ msg: err.message });
   }
 });
