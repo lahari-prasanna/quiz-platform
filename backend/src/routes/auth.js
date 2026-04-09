@@ -6,7 +6,6 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const User = require('../models/User');
 
-// Email transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -30,7 +29,7 @@ router.post('/register', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
-    res.json({ token, user: { id: user._id, name, role } });
+    res.json({ token, user: { id: user._id, name, role: user.role } });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -65,9 +64,14 @@ router.post('/google', async (req, res) => {
     const isNewUser = !user;
 
     if (!user) {
+      // New user — role తో create చేయండి
       user = await User.create({
         name, email, password: googleId, role: role || 'student'
       });
+    } else if (isNewUser === false && role && user.role !== role) {
+      // Existing user కానీ role modal నుండి వస్తే update చేయండి
+      user.role = role;
+      await user.save();
     }
 
     const token = jwt.sign(
@@ -91,38 +95,37 @@ router.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
     const user = await User.findOne({ email });
 
-    // Always return success even if email not found (security best practice)
     if (!user) {
       return res.json({ msg: 'If this email exists, a reset link has been sent' });
     }
 
-    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpiry = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    const resetExpiry = new Date(Date.now() + 30 * 60 * 1000);
 
     user.resetToken = resetToken;
     user.resetExpiry = resetExpiry;
     await user.save();
 
-    // Send email
-    const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+    // Production URL use చేయండి
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
     await transporter.sendMail({
-      from: `"Quiz Platform" <${process.env.EMAIL_USER}>`,
+      from: `"QuizAI Platform" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: '🔑 Reset Your Quiz Platform Password',
+      subject: '🔑 Reset Your QuizAI Password',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #2E5FA3; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
-            <h1 style="color: white; margin: 0;">🎓 Quiz Platform</h1>
+          <div style="background: linear-gradient(135deg, #1e3a8a, #1d4ed8); padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+            <h1 style="color: white; margin: 0;">🎓 QuizAI Platform</h1>
           </div>
           <div style="background: white; padding: 40px; border-radius: 0 0 12px 12px; border: 1px solid #eee;">
-            <h2 style="color: #1F3864;">Reset Your Password</h2>
+            <h2 style="color: #1e3a8a;">Reset Your Password</h2>
             <p style="color: #555;">Hi ${user.name},</p>
-            <p style="color: #555;">You requested to reset your password. Click the button below to set a new password:</p>
+            <p style="color: #555;">You requested to reset your password. Click the button below:</p>
             <div style="text-align: center; margin: 30px 0;">
               <a href="${resetUrl}"
-                style="background: #2E5FA3; color: white; padding: 14px 32px;
+                style="background: linear-gradient(135deg, #2563eb, #059669); color: white; padding: 14px 32px;
                        text-decoration: none; border-radius: 8px; font-size: 16px;">
                 Reset Password
               </a>
@@ -133,7 +136,7 @@ router.post('/forgot-password', async (req, res) => {
             </p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
             <p style="color: #aaa; font-size: 12px; text-align: center;">
-              Quiz Platform — RGUKT RK Valley
+              QuizAI Platform — RGUKT RK Valley · CSE Department
             </p>
           </div>
         </div>
@@ -155,14 +158,13 @@ router.post('/reset-password/:token', async (req, res) => {
 
     const user = await User.findOne({
       resetToken: token,
-      resetExpiry: { $gt: new Date() } // token not expired
+      resetExpiry: { $gt: new Date() }
     });
 
     if (!user) {
       return res.status(400).json({ msg: 'Invalid or expired reset link' });
     }
 
-    // Update password
     user.password = await bcrypt.hash(password, 10);
     user.resetToken = undefined;
     user.resetExpiry = undefined;
