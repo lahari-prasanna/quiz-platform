@@ -1,7 +1,8 @@
-
 import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
+
+const SOCKET_URL = 'https://quiz-platform-backend-bgiv.onrender.com';
 
 export default function TeacherLiveSession() {
   const { state } = useLocation();
@@ -16,22 +17,51 @@ export default function TeacherLiveSession() {
 
   useEffect(() => {
     if (!sessionCode) return navigate('/teacher');
-    socketRef.current = io('https://quiz-platform-backend-bgiv.onrender.com');
+
+    socketRef.current = io(SOCKET_URL, {
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      transports: ['websocket', 'polling'],
+    });
+
     const socket = socketRef.current;
+
     socket.on('connect', () => {
+      console.log('✅ Teacher connected:', socket.id);
       socket.emit('join_session', { sessionCode, userId: 'teacher', name: 'Teacher' });
     });
+
+    socket.on('reconnect', () => {
+      console.log('🔄 Teacher reconnected!');
+      socket.emit('join_session', { sessionCode, userId: 'teacher', name: 'Teacher' });
+    });
+
     socket.on('leaderboard_update', (data) => setLeaderboard(data));
+
     socket.on('cheat_warning', ({ name, warningCount, flagged }) => {
-      const msg = flagged ? `${name} has been flagged for cheating!` : `${name} switched tabs (warning ${warningCount}/3)`;
+      const msg = flagged
+        ? `${name} has been flagged for cheating!`
+        : `${name} switched tabs (warning ${warningCount}/3)`;
       setCheatAlerts(prev => [{ id: Date.now(), msg, flagged }, ...prev].slice(0, 5));
     });
-    return () => socket.disconnect();
+
+    socket.on('disconnect', (reason) => {
+      console.log('❌ Teacher disconnected:', reason);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const sendQuestion = () => {
     if (currentQ >= questions.length) return;
-    socketRef.current.emit('send_question', { sessionCode, question: questions[currentQ], index: currentQ });
+    socketRef.current.emit('send_question', {
+      sessionCode,
+      question: questions[currentQ],
+      index: currentQ
+    });
     setSent(true);
   };
 
@@ -133,7 +163,6 @@ export default function TeacherLiveSession() {
       </div>
 
       <div className="tls-body">
-        {/* Left col */}
         <div className="tls-left-col">
           <div className="tls-card">
             <div className="tls-card-top">
@@ -150,7 +179,6 @@ export default function TeacherLiveSession() {
 
             <div className="tls-options-grid">
               {questions?.[currentQ]?.options.map((opt, i) => {
-                const letter = ['A','B','C','D'][i];
                 const isCorrect = opt[0] === questions[currentQ].answer;
                 return (
                   <div key={i} className="tls-opt-row" style={{
@@ -160,7 +188,7 @@ export default function TeacherLiveSession() {
                     <span className="tls-opt-letter" style={{
                       background: isCorrect?'#059669':'#e2e8f0',
                       color: isCorrect?'white':'#64748b'
-                    }}>{letter}</span>
+                    }}>{['A','B','C','D'][i]}</span>
                     <span style={{fontSize:'14px', color:isCorrect?'#166534':'#374151', fontWeight:isCorrect?'600':'400', flex:1}}>
                       {opt.replace(/^[ABCD]\)\s*/,'')}
                     </span>
@@ -219,7 +247,6 @@ export default function TeacherLiveSession() {
           )}
         </div>
 
-        {/* Sidebar */}
         <div className="tls-sidebar">
           <div className="tls-sidebar-header">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
@@ -263,8 +290,6 @@ const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   .tls-page { min-height: 100vh; background: #f1f5f9; font-family: 'Plus Jakarta Sans', sans-serif; }
-
-  /* Header */
   .tls-header { background: linear-gradient(135deg, #1e3a8a, #1d4ed8); height: 60px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
   .tls-header-left { display: flex; align-items: center; gap: 10px; }
   .tls-logo { width: 32px; height: 32px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -275,12 +300,8 @@ const css = `
   .tls-progress-badge { background: rgba(255,255,255,0.15); color: white; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
   .tls-student-count { background: rgba(5,150,105,0.3); color: #6ee7b7; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; display: flex; align-items: center; gap: 5px; }
   .tls-ended-tag { background: rgba(220,38,38,0.2); color: #fca5a5; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
-
-  /* Body */
   .tls-body { display: grid; grid-template-columns: 1fr 280px; gap: 20px; padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
   .tls-left-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-
-  /* Question card */
   .tls-card { background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; }
   .tls-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 8px; }
   .tls-q-badge { background: linear-gradient(135deg,#eff6ff,#ecfdf5); color: #1e40af; font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 20px; border: 1px solid #bfdbfe; }
@@ -297,14 +318,10 @@ const css = `
   .tls-next-btn:hover { opacity: 0.9; transform: translateY(-1px); }
   .tls-end-btn { flex: 1; padding: 13px; background: linear-gradient(135deg,#dc2626,#b91c1c); color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; font-family: 'Plus Jakarta Sans', sans-serif; }
   .tls-end-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-
-  /* Alerts */
   .tls-alerts-card { background: white; border-radius: 16px; padding: 18px; border: 1px solid #fee2e2; }
   .tls-alerts-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .tls-alerts-title { font-size: 14px; font-weight: 700; color: #dc2626; }
   .tls-alert-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; }
-
-  /* Sidebar */
   .tls-sidebar { background: white; border-radius: 16px; padding: 18px; border: 1px solid #e2e8f0; height: fit-content; position: sticky; top: 20px; }
   .tls-sidebar-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; }
   .tls-sidebar-title { font-size: 14px; font-weight: 700; color: #0f172a; flex: 1; }
@@ -316,8 +333,6 @@ const css = `
   .tls-lb-info { flex: 1; min-width: 0; }
   .tls-lb-name { font-size: 13px; font-weight: 600; color: #0f172a; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tls-lb-score { font-size: 18px; font-weight: 800; color: #2563eb; flex-shrink: 0; }
-
-  /* Ended screen */
   .tls-ended-wrap { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 60px); padding: 24px; }
   .tls-ended-card { background: white; border-radius: 20px; padding: 36px; max-width: 560px; width: 100%; border: 1px solid #e2e8f0; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
   .tls-ended-icon { width: 60px; height: 60px; background: #fef3c7; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
@@ -338,14 +353,11 @@ const css = `
   .tls-ghost-btn { flex: 1; padding: 13px; background: white; border: 1.5px solid #e2e8f0; color: #374151; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif; }
   .tls-ghost-btn:hover { background: #f1f5f9; }
 
-  /* ── RESPONSIVE ─────────────────────────────── */
-
   @media (max-width: 900px) {
     .tls-body { grid-template-columns: 1fr; }
     .tls-sidebar { position: static; }
     .tls-options-grid { grid-template-columns: 1fr; }
   }
-
   @media (max-width: 640px) {
     .tls-header { padding: 0 14px; height: auto; min-height: 56px; padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap; gap: 8px; }
     .tls-quiz-name { display: none; }
@@ -361,7 +373,6 @@ const css = `
     .tls-ghost-btn { flex: none; width: 100%; }
     .tls-primary-btn { flex: none; width: 100%; }
   }
-
   @media (max-width: 400px) {
     .tls-logo-text { font-size: 15px; }
     .tls-session-badge { display: none; }

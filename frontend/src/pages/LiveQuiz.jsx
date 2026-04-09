@@ -4,7 +4,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 
-const socket = io('https://quiz-platform-backend-bgiv.onrender.com', { autoConnect: false });
+const socket = io('https://quiz-platform-backend-bgiv.onrender.com', {
+  autoConnect: false,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  transports: ['websocket', 'polling'],
+});
 
 export default function LiveQuiz() {
   const { sessionCode } = useParams();
@@ -58,6 +64,7 @@ export default function LiveQuiz() {
     socket.on('leaderboard_update', (data) => setLeaderboard(data));
     socket.on('session_ended', () => { setEnded(true); endedRef.current = true; });
     socket.on('flagged_cheating', () => setFlagged(true));
+    socket.on('reconnect', () => { socket.emit('join_session', { sessionCode, userId: user.id, name: user.name }); });
     return () => {
       socket.off('receive_question'); socket.off('leaderboard_update');
       socket.off('session_ended'); socket.off('connect'); socket.off('flagged_cheating');
