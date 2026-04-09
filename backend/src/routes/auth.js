@@ -6,12 +6,15 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const User = require('../models/User');
 
-const transporter = nodemailer.createTransport({
+const createTransporter = () => nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-  }
+  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 });
 
 // POST /api/auth/register
@@ -20,15 +23,9 @@ router.post('/register', async (req, res) => {
     const { name, email, password, role } = req.body;
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ msg: 'Email already exists' });
-
     const hashed = await bcrypt.hash(password, 10);
     const user = await User.create({ name, email, password: hashed, role });
-
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user._id, name, role: user.role } });
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -41,15 +38,9 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ msg: 'Invalid credentials' });
-
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ msg: 'Invalid credentials' });
-
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user._id, name: user.name, role: user.role } });
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -62,28 +53,14 @@ router.post('/google', async (req, res) => {
     const { name, email, googleId, role } = req.body;
     let user = await User.findOne({ email });
     const isNewUser = !user;
-
     if (!user) {
-      // New user — role తో create చేయండి
-      user = await User.create({
-        name, email, password: googleId, role: role || 'student'
-      });
-    } else if (isNewUser === false && role && user.role !== role) {
-      // Existing user కానీ role modal నుండి వస్తే update చేయండి
+      user = await User.create({ name, email, password: googleId, role: role || 'student' });
+    } else if (role && user.role !== role && isNewUser === false) {
       user.role = role;
       await user.save();
     }
-
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, role: user.role },
-      isNewUser
-    });
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user._id, name: user.name, role: user.role }, isNewUser });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -100,17 +77,19 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpiry = new Date(Date.now() + 30 * 60 * 1000);
-
     user.resetToken = resetToken;
-    user.resetExpiry = resetExpiry;
+    user.resetExpiry = new Date(Date.now() + 30 * 60 * 1000);
     await user.save();
 
-    // Production URL use చేయండి
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
-    await transporter.sendMail({
+    // Email async గా send చేయండి — response wait చేయకుండా
+    res.json({ msg: 'If this email exists, a reset link has been sent' });
+
+    // Background లో email send చేయండి
+    const transporter = createTransporter();
+    transporter.sendMail({
       from: `"QuizAI Platform" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: '🔑 Reset Your QuizAI Password',
@@ -122,7 +101,7 @@ router.post('/forgot-password', async (req, res) => {
           <div style="background: white; padding: 40px; border-radius: 0 0 12px 12px; border: 1px solid #eee;">
             <h2 style="color: #1e3a8a;">Reset Your Password</h2>
             <p style="color: #555;">Hi ${user.name},</p>
-            <p style="color: #555;">You requested to reset your password. Click the button below:</p>
+            <p style="color: #555;">Click the button below to reset your password:</p>
             <div style="text-align: center; margin: 30px 0;">
               <a href="${resetUrl}"
                 style="background: linear-gradient(135deg, #2563eb, #059669); color: white; padding: 14px 32px;
@@ -141,12 +120,15 @@ router.post('/forgot-password', async (req, res) => {
           </div>
         </div>
       `
+    }).then(() => {
+      console.log(`✅ Reset email sent to ${email}`);
+    }).catch((err) => {
+      console.error(`❌ Email send failed: ${err.message}`);
     });
 
-    res.json({ msg: 'If this email exists, a reset link has been sent' });
   } catch (err) {
-    console.error('Email error:', err);
-    res.status(500).json({ msg: 'Failed to send email: ' + err.message });
+    console.error('Forgot password error:', err);
+    res.status(500).json({ msg: err.message });
   }
 });
 
@@ -155,21 +137,12 @@ router.post('/reset-password/:token', async (req, res) => {
   try {
     const { token } = req.params;
     const { password } = req.body;
-
-    const user = await User.findOne({
-      resetToken: token,
-      resetExpiry: { $gt: new Date() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ msg: 'Invalid or expired reset link' });
-    }
-
+    const user = await User.findOne({ resetToken: token, resetExpiry: { $gt: new Date() } });
+    if (!user) return res.status(400).json({ msg: 'Invalid or expired reset link' });
     user.password = await bcrypt.hash(password, 10);
     user.resetToken = undefined;
     user.resetExpiry = undefined;
     await user.save();
-
     res.json({ msg: 'Password reset successfully! You can now login.' });
   } catch (err) {
     res.status(500).json({ msg: err.message });
