@@ -16,7 +16,7 @@ export default function TeacherLiveSession() {
 
   useEffect(() => {
     if (!sessionCode) return navigate('/teacher');
-    socketRef.current = io('http://localhost:5000');
+    socketRef.current = io('https://quiz-platform-backend-bgiv.onrender.com');
     const socket = socketRef.current;
     socket.on('connect', () => {
       socket.emit('join_session', { sessionCode, userId: 'teacher', name: 'Teacher' });
