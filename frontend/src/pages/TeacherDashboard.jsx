@@ -24,6 +24,13 @@ export default function TeacherDashboard() {
 
   useEffect(() => { loadQuizzes(); }, []);
 
+  useEffect(() => {
+    if (msg) {
+      const timer = setTimeout(() => setMsg(''), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [msg]);
+
   const loadQuizzes = async () => {
     try { const res = await getMyQuizzes(); setQuizzes(res.data); }
     catch (err) { console.error(err); }
@@ -149,6 +156,24 @@ export default function TeacherDashboard() {
     <div className="td-page">
       <style>{css}</style>
 
+      {/* Toast Notification */}
+      {msg && (
+        <div className="td-toast" style={{
+          background: msgType==='success'?'#059669':msgType==='error'?'#dc2626':'#2563eb',
+        }}>
+          {msgType==='success'
+            ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+            : msgType==='error'
+            ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          }
+          <span>{msg}</span>
+          <button className="td-toast-close" onClick={() => setMsg('')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="td-modal-overlay">
@@ -212,13 +237,7 @@ export default function TeacherDashboard() {
               </div>
             </div>
 
-            {msg && (
-              <div className="td-msg" style={{
-                background: msgType==='success'?'#ecfdf5':msgType==='error'?'#fef2f2':'#eff6ff',
-                borderColor: msgType==='success'?'#86efac':msgType==='error'?'#fecaca':'#bfdbfe',
-                color: msgType==='success'?'#166534':msgType==='error'?'#dc2626':'#1e40af',
-              }}>{msg}</div>
-            )}
+
 
             <form onSubmit={handleGenerate} className="td-form">
               <div className="td-field">
@@ -367,6 +386,10 @@ const css = `
   .td-empty-text { font-size: 16px; font-weight: 600; color: #94a3b8; }
   .td-empty-sub { font-size: 13px; color: #cbd5e1; }
   .td-quiz-list { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; }
+  .td-toast { position: fixed; top: 76px; right: 24px; display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 12px; color: white; font-size: 14px; font-weight: 600; z-index: 999; box-shadow: 0 8px 24px rgba(0,0,0,0.15); max-width: 360px; animation: td-slideIn 0.3s ease; }
+  @keyframes td-slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .td-toast-close { background: none; border: none; cursor: pointer; display: flex; align-items: center; margin-left: 8px; opacity: 0.8; flex-shrink: 0; }
+  .td-toast-close:hover { opacity: 1; }
   .td-full-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 60px); gap: 16px; }
   .td-loader-spinner { width: 48px; height: 48px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; }
   .td-loader-text { font-size: 15px; color: #64748b; font-weight: 500; }
