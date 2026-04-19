@@ -18,12 +18,16 @@ export default function TeacherDashboard() {
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [showWaiting, setShowWaiting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [quizToDelete, setQuizToDelete] = useState(null);
 
   useEffect(() => { loadQuizzes(); }, []);
 
   const loadQuizzes = async () => {
     try { const res = await getMyQuizzes(); setQuizzes(res.data); }
     catch (err) { console.error(err); }
+    finally { setPageLoading(false); }
   };
 
   const handleGenerate = async (e) => {
@@ -51,21 +55,45 @@ export default function TeacherDashboard() {
     navigate('/teacher/live', { state: { sessionCode, questions: selectedQuiz.questions, title: selectedQuiz.title } });
   };
 
-  const handleDelete = async (quizId, e) => {
+  const handleDelete = (quizId, e) => {
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this quiz?')) return;
-    setDeletingId(quizId);
+    setQuizToDelete(quizId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    setShowDeleteModal(false);
+    setDeletingId(quizToDelete);
     try {
-      await deleteQuiz(quizId);
-      setQuizzes(prev => prev.filter(q => q._id !== quizId));
+      await deleteQuiz(quizToDelete);
+      setQuizzes(prev => prev.filter(q => q._id !== quizToDelete));
       setMsg('Quiz deleted successfully!'); setMsgType('success');
     } catch (err) {
       setMsg('Failed to delete quiz'); setMsgType('error');
     }
     setDeletingId(null);
+    setQuizToDelete(null);
   };
 
   const sortedQuizzes = [...quizzes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (pageLoading) {
+    return (
+      <div className="td-page">
+        <style>{css}</style>
+        <div className="td-header">
+          <div className="td-header-left">
+            <div className="td-logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+            <span className="td-logo-text">QuizAI</span>
+          </div>
+        </div>
+        <div className="td-full-loader">
+          <div className="td-loader-spinner"/>
+          <p className="td-loader-text">Loading ...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (showWaiting) {
     return (
@@ -120,6 +148,23 @@ export default function TeacherDashboard() {
   return (
     <div className="td-page">
       <style>{css}</style>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="td-modal-overlay">
+          <div className="td-modal">
+            <div className="td-modal-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </div>
+            <h3 className="td-modal-title">Delete Quiz?</h3>
+            <p className="td-modal-text">This action cannot be undone. The quiz and all its questions will be permanently deleted.</p>
+            <div className="td-modal-btns">
+              <button className="td-modal-cancel" onClick={() => { setShowDeleteModal(false); setQuizToDelete(null); }}>Cancel</button>
+              <button className="td-modal-confirm" onClick={confirmDelete}>Delete Quiz</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="td-header">
         <div className="td-header-left">
@@ -322,6 +367,19 @@ const css = `
   .td-empty-text { font-size: 16px; font-weight: 600; color: #94a3b8; }
   .td-empty-sub { font-size: 13px; color: #cbd5e1; }
   .td-quiz-list { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; }
+  .td-full-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 60px); gap: 16px; }
+  .td-loader-spinner { width: 48px; height: 48px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .td-loader-text { font-size: 15px; color: #64748b; font-weight: 500; }
+  .td-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(6px); padding: 20px; }
+  .td-modal { background: white; border-radius: 20px; padding: 36px 32px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 25px 60px rgba(0,0,0,0.2); }
+  .td-modal-icon { width: 64px; height: 64px; background: #fef2f2; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+  .td-modal-title { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 10px; }
+  .td-modal-text { font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 28px; }
+  .td-modal-btns { display: flex; gap: 12px; }
+  .td-modal-cancel { flex: 1; padding: 12px; background: white; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 14px; font-weight: 600; color: #374151; cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif; }
+  .td-modal-cancel:hover { background: #f1f5f9; }
+  .td-modal-confirm { flex: 1; padding: 12px; background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif; }
+  .td-modal-confirm:hover { opacity: 0.9; transform: translateY(-1px); }
   .td-delete-btn { padding: 7px 10px; background: white; border: 1.5px solid #fecaca; border-radius: 8px; cursor: pointer; color: #dc2626; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
   .td-delete-btn:hover { background: #fef2f2; border-color: #dc2626; }
   .td-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
