@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generateQuiz, getMyQuizzes, createSession } from '../services/api';
+import { generateQuiz, getMyQuizzes, createSession, deleteQuiz } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 export default function TeacherDashboard() {
@@ -238,10 +238,18 @@ export default function TeacherDashboard() {
                         </p>
                       </div>
                     </div>
-                    <button className="td-start-btn" onClick={()=>handleStartSession(quiz)}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                      Start
-                    </button>
+                    <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
+                      <button className="td-delete-btn" onClick={(e)=>handleDelete(quiz._id, e)} disabled={deletingId===quiz._id}>
+                        {deletingId===quiz._id
+                          ? <span className="td-mini-spinner"/>
+                          : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                        }
+                      </button>
+                      <button className="td-start-btn" onClick={()=>handleStartSession(quiz)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Start
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -315,6 +323,18 @@ const css = `
   .td-empty-sub { font-size: 13px; color: #cbd5e1; }
   .td-quiz-list { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; }
   .td-delete-btn { padding: 7px 10px; background: white; border: 1.5px solid #fecaca; border-radius: 8px; cursor: pointer; color: #dc2626; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+  .td-delete-btn:hover { background: #fef2f2; border-color: #dc2626; }
+  .td-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .td-mini-spinner { width: 14px; height: 14px; border: 2px solid rgba(220,38,38,0.3); border-top-color: #dc2626; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+  .td-delete-btn { padding: 7px 10px; background: white; border: 1.5px solid #fecaca; border-radius: 8px; cursor: pointer; color: #dc2626; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+  .td-delete-btn:hover { background: #fef2f2; border-color: #dc2626; }
+  .td-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .td-mini-spinner { width: 14px; height: 14px; border: 2px solid rgba(220,38,38,0.3); border-top-color: #dc2626; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+  .td-delete-btn { padding: 7px 10px; background: white; border: 1.5px solid #fecaca; border-radius: 8px; cursor: pointer; color: #dc2626; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+  .td-delete-btn:hover { background: #fef2f2; border-color: #dc2626; }
+  .td-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .td-mini-spinner { width: 14px; height: 14px; border: 2px solid rgba(220,38,38,0.3); border-top-color: #dc2626; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+  .td-delete-btn { padding: 7px 10px; background: white; border: 1.5px solid #fecaca; border-radius: 8px; cursor: pointer; color: #dc2626; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
   .td-delete-btn:hover { background: #fef2f2; border-color: #dc2626; }
   .td-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .td-mini-spinner { width: 14px; height: 14px; border: 2px solid rgba(220,38,38,0.3); border-top-color: #dc2626; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
