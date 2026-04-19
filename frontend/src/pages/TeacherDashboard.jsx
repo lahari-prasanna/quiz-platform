@@ -18,6 +18,8 @@ export default function TeacherDashboard() {
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [showWaiting, setShowWaiting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [deleteMsg, setDeleteMsg] = useState('');
+  const [deleteMsgType, setDeleteMsgType] = useState('success');
   const [pageLoading, setPageLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState(null);
@@ -25,11 +27,11 @@ export default function TeacherDashboard() {
   useEffect(() => { loadQuizzes(); }, []);
 
   useEffect(() => {
-    if (msg) {
-      const timer = setTimeout(() => setMsg(''), 3000);
+    if (deleteMsg) {
+      const timer = setTimeout(() => setDeleteMsg(''), 3000);
       return () => clearTimeout(timer);
     }
-  }, [msg]);
+  }, [deleteMsg]);
 
   const loadQuizzes = async () => {
     try { const res = await getMyQuizzes(); setQuizzes(res.data); }
@@ -74,9 +76,9 @@ export default function TeacherDashboard() {
     try {
       await deleteQuiz(quizToDelete);
       setQuizzes(prev => prev.filter(q => q._id !== quizToDelete));
-      setMsg('Quiz deleted successfully!'); setMsgType('success');
+      setDeleteMsg('Quiz deleted successfully!'); setDeleteMsgType('success');
     } catch (err) {
-      setMsg('Failed to delete quiz'); setMsgType('error');
+      setDeleteMsg('Failed to delete quiz'); setDeleteMsgType('error');
     }
     setDeletingId(null);
     setQuizToDelete(null);
@@ -157,18 +159,16 @@ export default function TeacherDashboard() {
       <style>{css}</style>
 
       {/* Toast Notification */}
-      {msg && (
+      {deleteMsg && (
         <div className="td-toast" style={{
-          background: msgType==='success'?'#059669':msgType==='error'?'#dc2626':'#2563eb',
+          background: deleteMsgType==='success'?'#059669':'#dc2626',
         }}>
-          {msgType==='success'
+          {deleteMsgType==='success'
             ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
-            : msgType==='error'
-            ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           }
-          <span>{msg}</span>
-          <button className="td-toast-close" onClick={() => setMsg('')}>
+          <span>{deleteMsg}</span>
+          <button className="td-toast-close" onClick={() => setDeleteMsg('')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
@@ -265,6 +265,13 @@ export default function TeacherDashboard() {
                 {loading ? <><span className="td-spinner"/> Generating...</> : <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate with AI</>}
               </button>
             </form>
+            {msg && (
+              <div className="td-msg" style={{
+                background: msgType==="success"?"#ecfdf5":msgType==="error"?"#fef2f2":"#eff6ff",
+                borderColor: msgType==="success"?"#86efac":msgType==="error"?"#fecaca":"#bfdbfe",
+                color: msgType==="success"?"#166534":msgType==="error"?"#dc2626":"#1e40af",
+              }}>{msg}</div>
+            )}
           </div>
 
           {/* Quiz List */}
