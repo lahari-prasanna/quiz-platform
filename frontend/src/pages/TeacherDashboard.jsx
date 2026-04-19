@@ -17,6 +17,7 @@ export default function TeacherDashboard() {
   const [sessionCode, setSessionCode] = useState('');
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [showWaiting, setShowWaiting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => { loadQuizzes(); }, []);
 
@@ -48,6 +49,20 @@ export default function TeacherDashboard() {
 
   const handleStartQuiz = () => {
     navigate('/teacher/live', { state: { sessionCode, questions: selectedQuiz.questions, title: selectedQuiz.title } });
+  };
+
+  const handleDelete = async (quizId, e) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this quiz?')) return;
+    setDeletingId(quizId);
+    try {
+      await deleteQuiz(quizId);
+      setQuizzes(prev => prev.filter(q => q._id !== quizId));
+      setMsg('Quiz deleted successfully!'); setMsgType('success');
+    } catch (err) {
+      setMsg('Failed to delete quiz'); setMsgType('error');
+    }
+    setDeletingId(null);
   };
 
   const sortedQuizzes = [...quizzes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -299,6 +314,10 @@ const css = `
   .td-empty-text { font-size: 16px; font-weight: 600; color: #94a3b8; }
   .td-empty-sub { font-size: 13px; color: #cbd5e1; }
   .td-quiz-list { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; }
+  .td-delete-btn { padding: 7px 10px; background: white; border: 1.5px solid #fecaca; border-radius: 8px; cursor: pointer; color: #dc2626; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+  .td-delete-btn:hover { background: #fef2f2; border-color: #dc2626; }
+  .td-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .td-mini-spinner { width: 14px; height: 14px; border: 2px solid rgba(220,38,38,0.3); border-top-color: #dc2626; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
   .td-quiz-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border: 1.5px solid #e2e8f0; border-radius: 12px; transition: all 0.2s; }
   .td-quiz-row:hover { border-color: #bfdbfe; box-shadow: 0 4px 16px rgba(37,99,235,0.1); transform: translateY(-1px); }
   .td-quiz-left { display: flex; align-items: center; gap: 12px; min-width: 0; }

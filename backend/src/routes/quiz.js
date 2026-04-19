@@ -275,4 +275,30 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
+
+// DELETE /api/quiz/:id
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const quiz = await Quiz.findOne({ _id: req.params.id, createdBy: req.user.id });
+    if (!quiz) return res.status(404).json({ msg: 'Quiz not found' });
+    await Quiz.findByIdAndDelete(req.params.id);
+    res.json({ msg: 'Quiz deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+
+// DELETE /api/quiz/:id
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const quiz = await Quiz.findOne({ _id: req.params.id, createdBy: req.user.id });
+    if (!quiz) return res.status(404).json({ msg: 'Quiz not found' });
+    await Quiz.findByIdAndDelete(req.params.id);
+    res.json({ msg: 'Quiz deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
 module.exports = router;
