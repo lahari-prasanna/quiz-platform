@@ -18,6 +18,9 @@ const createTransporter = () => nodemailer.createTransport({
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return res.status(400).json({ msg: "Please enter a valid email address" });
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ msg: 'Email already exists' });
     const hashed = await bcrypt.hash(password, 10);
@@ -51,26 +54,22 @@ router.post('/google', async (req, res) => {
     let user = await User.findOne({ email });
 
     if (!user) {
-      // Brand new user — role modal నుండి వచ్చిన role తో create చేయండి
-      user = await User.create({
-        name, email, password: googleId,
-        role: role || 'student'
-      });
-      const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-      return res.json({
-        token,
-        user: { id: user._id, name: user.name, role: user.role },
-        isNewUser: true
-      });
-    } else {
-      // Existing user — DB లో ఉన్న role ని USE చేయండి, NEVER override చేయకండి
-      const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-      return res.json({
-        token,
-        user: { id: user._id, name: user.name, role: user.role },
-        isNewUser: false
-      });
+      if (!role) {
+        return res.json({ isNewUser: true });
+      }
+      user = await User.create({ name, email, password: googleId, role });
     }
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    res.json({
+      token,
+      user: { id: user._id, name: user.name, role: user.role },
+      isNewUser: false
+    });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -145,3 +144,4 @@ router.post('/reset-password/:token', async (req, res) => {
 });
 
 module.exports = router;
+// This is already handled — just need email format validation in register route

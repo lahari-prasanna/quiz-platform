@@ -1,6 +1,5 @@
-
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { loginUser, googleLogin } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { signInWithGoogle } from '../services/firebase';
@@ -17,8 +16,7 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const res = await loginUser(form);
       login(res.data.token, res.data.user);
@@ -35,13 +33,18 @@ export default function Login() {
       const result = await signInWithGoogle();
       if (!result) return;
       const { displayName, email, uid } = result.user;
-      const res = await googleLogin({ name: displayName, email, googleId: uid, role: 'student' });
-      if (!res.data.isNewUser) {
-        login(res.data.token, res.data.user);
-        navigate(res.data.user.role === 'teacher' ? '/teacher' : '/student');
-      } else {
+
+      // First check if user exists — don't send role yet
+      const res = await googleLogin({ name: displayName, email, googleId: uid });
+
+      if (res.data.isNewUser) {
+        // New user — show role modal
         setGoogleUser({ name: displayName, email, googleId: uid });
         setShowRoleModal(true);
+      } else {
+        // Existing user — use DB role directly
+        login(res.data.token, res.data.user);
+        navigate(res.data.user.role === 'teacher' ? '/teacher' : '/student');
       }
     } catch (err) {
       setError('Google login failed: ' + (err.message || 'Unknown error'));
@@ -51,6 +54,7 @@ export default function Login() {
   const handleRoleSelect = async (role) => {
     setShowRoleModal(false);
     try {
+      // New user — send role this time
       const res = await googleLogin({ ...googleUser, role });
       login(res.data.token, res.data.user);
       navigate(res.data.user.role === 'teacher' ? '/teacher' : '/student');
@@ -144,10 +148,10 @@ export default function Login() {
               </div>
               <div className="input-wrap">
                 <span className="input-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </span>
                 <input className="input-field" type={showPass ? 'text' : 'password'}
-                  placeholder="Enter your password" value={form.password}
+                  placeholder="Your password" value={form.password}
                   onChange={e => setForm({...form, password: e.target.value})} required />
                 <button type="button" className="show-pass-btn" onClick={() => setShowPass(!showPass)}>
                   {showPass
@@ -159,7 +163,7 @@ export default function Login() {
             </div>
 
             <button className={loading ? 'btn-disabled' : 'btn-primary'} type="submit" disabled={loading}>
-              {loading ? <><span className="spinner"/> Signing in...</> : 'Sign In'}
+              {loading ? <><span className="spinner"/>Signing in...</> : 'Sign In'}
             </button>
           </form>
 
@@ -190,10 +194,7 @@ export default function Login() {
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
   .page { display: flex; min-height: 100vh; font-family: 'Plus Jakarta Sans', sans-serif; }
-
-  /* Left Panel */
   .left-panel { width: 45%; background: linear-gradient(145deg, #1e3a8a 0%, #1d4ed8 40%, #059669 100%); padding: 48px; display: flex; flex-direction: column; justify-content: space-between; }
   .brand-mark { width: 72px; height: 72px; background: rgba(255,255,255,0.15); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
   .brand-name { font-size: 36px; font-weight: 800; color: white; margin-bottom: 8px; letter-spacing: -0.5px; }
@@ -203,15 +204,11 @@ const css = `
   .feature-icon { width: 36px; height: 36px; background: rgba(255,255,255,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .feature-text { font-size: 14px; font-weight: 500; }
   .left-footer { color: rgba(255,255,255,0.5); font-size: 13px; }
-
-  /* Right Panel */
   .right-panel { flex: 1; display: flex; align-items: center; justify-content: center; background: #f8fafc; padding: 48px; }
   .form-wrap { width: 100%; max-width: 420px; }
   .form-header { margin-bottom: 32px; }
   .form-title { font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 6px; letter-spacing: -0.5px; }
   .form-subtitle { font-size: 15px; color: #64748b; }
-
-  /* Form */
   .form { display: flex; flex-direction: column; gap: 20px; margin-bottom: 24px; }
   .field-group { display: flex; flex-direction: column; gap: 6px; }
   .label { font-size: 14px; font-weight: 600; color: #374151; }
@@ -223,15 +220,11 @@ const css = `
   .input-field { width: 100%; padding: 12px 14px 12px 42px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 15px; background: white; color: #0f172a; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif; }
   .input-field:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
   .show-pass-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; display: flex; align-items: center; }
-
-  /* Buttons */
   .btn-primary { width: 100%; padding: 13px; background: linear-gradient(135deg, #2563eb, #059669); color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 8px 25px rgba(37,99,235,0.35); }
   .btn-disabled { width: 100%; padding: 13px; background: #94a3b8; color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: not-allowed; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .google-btn { width: 100%; padding: 12px; background: white; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; color: #374151; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif; }
   .google-btn:hover { background: #f8faff; border-color: #2563eb; }
-
-  /* Misc */
   .error-box { display: flex; align-items: center; gap: 8px; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 20px; }
   .divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; }
   .div-line { flex: 1; height: 1px; background: #e2e8f0; }
@@ -240,8 +233,6 @@ const css = `
   .register-link-a { color: #2563eb; text-decoration: none; font-weight: 600; }
   .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Modal */
   .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
   .modal { background: white; border-radius: 20px; padding: 40px; max-width: 480px; width: 90%; text-align: center; box-shadow: 0 25px 60px rgba(0,0,0,0.2); }
   .modal-icon-wrap { width: 64px; height: 64px; background: #eff6ff; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
@@ -252,20 +243,10 @@ const css = `
   .role-card:hover { border-color: #2563eb; background: #eff6ff; transform: translateY(-2px); }
   .role-label { font-weight: 700; font-size: 16px; color: #0f172a; margin-bottom: 4px; }
   .role-desc { font-size: 13px; color: #64748b; }
-
-  /* ── RESPONSIVE ────────────────────────────────── */
-
-  /* Tablet (768px - 1024px) */
-  @media (max-width: 1024px) {
-    .left-panel { width: 40%; padding: 36px; }
-    .brand-name { font-size: 28px; }
-    .right-panel { padding: 36px; }
-  }
-
-  /* Mobile landscape + small tablet (max 768px) */
+  @media (max-width: 1024px) { .left-panel { width: 40%; padding: 36px; } .brand-name { font-size: 28px; } .right-panel { padding: 36px; } }
   @media (max-width: 768px) {
     .page { flex-direction: column; }
-    .left-panel { width: 100%; padding: 28px 24px; flex-direction: row; align-items: center; gap: 16px; justify-content: flex-start; }
+    .left-panel { width: 100%; padding: 28px 24px; flex-direction: row; align-items: center; gap: 16px; }
     .left-content { display: flex; align-items: center; gap: 14px; flex: 1; }
     .brand-mark { width: 48px; height: 48px; margin-bottom: 0; flex-shrink: 0; }
     .brand-name { font-size: 22px; margin-bottom: 2px; }
@@ -276,23 +257,6 @@ const css = `
     .form-wrap { max-width: 100%; }
     .form-title { font-size: 22px; }
   }
-
-  /* Mobile portrait (max 480px) */
-  @media (max-width: 480px) {
-    .left-panel { padding: 20px 16px; }
-    .brand-name { font-size: 20px; }
-    .right-panel { padding: 20px 16px; }
-    .form-title { font-size: 20px; }
-    .input-field { font-size: 14px; }
-    .btn-primary, .btn-disabled, .google-btn { font-size: 14px; padding: 12px; }
-    .modal { padding: 28px 20px; }
-    .role-row { grid-template-columns: 1fr 1fr; gap: 10px; }
-  }
-
-  /* Very small (max 360px) */
-  @media (max-width: 360px) {
-    .brand-name { font-size: 18px; }
-    .form-title { font-size: 18px; }
-    .role-row { grid-template-columns: 1fr; }
-  }
+  @media (max-width: 480px) { .left-panel { padding: 20px 16px; } .brand-name { font-size: 20px; } .right-panel { padding: 20px 16px; } .form-title { font-size: 20px; } .input-field { font-size: 14px; } .btn-primary, .btn-disabled, .google-btn { font-size: 14px; padding: 12px; } .modal { padding: 28px 20px; } }
+  @media (max-width: 360px) { .brand-name { font-size: 18px; } .form-title { font-size: 18px; } .role-row { grid-template-columns: 1fr; } }
 `;

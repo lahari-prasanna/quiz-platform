@@ -28,7 +28,7 @@ export default function TeacherDashboard() {
   const handleGenerate = async (e) => {
     e.preventDefault();
     if (!file) { setMsg('Please select a PDF file'); setMsgType('error'); return; }
-    setLoading(true); setMsg('AI is generating questions from your PDF...'); setMsgType('info');
+    setLoading(true); setMsg('⏳ Uploading file to cloud...'); setMsgType('info');
     try {
       const formData = new FormData();
       formData.append('pdf', file); formData.append('title', title || file.name); formData.append('num_questions', numQ);
@@ -77,7 +77,7 @@ export default function TeacherDashboard() {
             <div className="td-code-wrap">
               <p className="td-code-label">SESSION CODE</p>
               <div className="td-code-display">{sessionCode}</div>
-              <p className="td-code-hint">Students go to <strong>localhost:3000/student</strong> and enter this code</p>
+              <p className="td-code-hint">Students need to enter this code to join the room</p>
             </div>
             <div className="td-quiz-info-row">
               <div className="td-quiz-info-item">
@@ -170,8 +170,8 @@ export default function TeacherDashboard() {
                 <label className="td-label">PDF File</label>
                 <label className="td-file-label">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={file?'#2563eb':'#94a3b8'} strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                  <span style={{color:file?'#2563eb':'#94a3b8', fontWeight:file?'600':'400'}}>{file ? file.name : 'Click to select PDF'}</span>
-                  <input type="file" accept=".pdf" style={{display:'none'}} onChange={e=>setFile(e.target.files[0])}/>
+                  <span style={{color:file?'#2563eb':'#94a3b8', fontWeight:file?'600':'400'}}>{file ? file.name : 'Click to select file (PDF, Word, PPT, TXT)'}</span>
+                  <input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt" style={{display:'none'}} onChange={e=>setFile(e.target.files[0])}/>
                 </label>
               </div>
               <div className="td-field">

@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 
-const socket = io('https://quiz-platform-backend-bgiv.onrender.com', {
+const socket = io('http://localhost:5000', {
   autoConnect: false,
   reconnection: true,
   reconnectionAttempts: 10,
