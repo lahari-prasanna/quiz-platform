@@ -1,12 +1,43 @@
-const mongoose = require('mongoose');
+// const mongoose = require("mongoose");
 
-const userSchema = new mongoose.Schema({
-  name:         { type: String, required: true },
-  email:        { type: String, required: true, unique: true },
-  password:     { type: String, required: true },
-  role:         { type: String, enum: ['student','teacher','admin'], default: 'student' },
-  resetToken:   { type: String },
-  resetExpiry:  { type: Date }
-}, { timestamps: true });
+// const userSchema = new mongoose.Schema(
+//   {
+//     name: { type: String, required: true },
+//     email: { type: String, required: true, unique: true },
+//     password: { type: String, required: true },
+//     role: {
+//       type: String,
+//       enum: ["student", "teacher", "admin"],
+//       default: "student",
+//     },
+//     resetToken: { type: String },
+//     resetExpiry: { type: Date },
+//   },
+//   { timestamps: true },
+// );
 
-module.exports = mongoose.model('User', userSchema);
+// module.exports = mongoose.model("User", userSchema);
+
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    role: {
+      type: String,
+      enum: ["student", "teacher", "admin"],
+      default: "student",
+    },
+    resetToken: { type: String },
+    resetExpiry: { type: Date },
+    // NEW verification fields
+    isVerified: { type: Boolean, default: false },
+    verificationToken: { type: String },
+    verificationExpiry: { type: Date },
+  },
+  { timestamps: true },
+);
+
+module.exports = mongoose.model("User", userSchema);

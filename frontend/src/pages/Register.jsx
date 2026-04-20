@@ -16,17 +16,45 @@ export default function Register() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true); setError('');
-    try {
-      const res = await registerUser(form);
-      login(res.data.token, res.data.user);
-      navigate(res.data.user.role === 'teacher' ? '/teacher' : '/student');
-    } catch (err) { setError(err.response?.data?.msg || 'Registration failed'); }
-    setLoading(false);
-  };
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   setLoading(true); setError('');
+  //   try {
+  //     const res = await registerUser(form);
+  //     login(res.data.token, res.data.user);
+  //     navigate(res.data.user.role === 'teacher' ? '/teacher' : '/student');
+  //   } catch (err) { setError(err.response?.data?.msg || 'Registration failed'); }
+  //   setLoading(false);
+  // };
 
+//   const handleSubmit = async (e) => {
+//   e.preventDefault();
+//   setLoading(true);
+//   setError('');
+//   try {
+//     const res = await registerUser(form);
+//     // res.data.msg contains success message
+//     navigate('/VerifyEmail', { state: { email: form.email } });
+//   } catch (err) {
+//     setError(err.response?.data?.msg || 'Registration failed');
+//   }
+//   setLoading(false);
+// };
+
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+  try {
+    await registerUser(form);
+    // Registration successful – now redirect to "check email" page
+    navigate('/verify-email-sent');
+  } catch (err) {
+    setError(err.response?.data?.msg || 'Registration failed');
+  }
+  setLoading(false);
+};
   const handleGoogle = async () => {
     setError('');
     setGoogleLoading(true);
