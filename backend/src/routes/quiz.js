@@ -5,10 +5,9 @@ const cloudinary = require("cloudinary").v2;
 const axios = require("axios");
 const auth = require("../middleware/auth");
 const Quiz = require("../models/Quiz");
-const pdfParse = require("pdf-parse");
-const mammoth = require("mammoth");
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -54,56 +53,52 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-const extractText = async (filePath, ext) => {
+// Extract text using Python script
+const extractText = (filePath) => {
   try {
-    if (ext === "pdf") {
-      const buffer = fs.readFileSync(filePath);
-      const data = await pdfParse(buffer);
-      return data.text || "";
-    }
-    if (ext === "docx") {
-      const result = await mammoth.extractRawText({ path: filePath });
-      return result.value || "";
-    }
-    if (ext === "txt") return fs.readFileSync(filePath, "utf8");
-    const buffer = fs.readFileSync(filePath);
-    return buffer
-      .toString("utf8")
-      .replace(/[^\x20-\x7E\n]/g, " ")
-      .replace(/\s+/g, " ");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../extract_text.py",
+    );
+    const text = execSync(`python3 "${scriptPath}" "${filePath}"`, {
+      timeout: 30000,
+      maxBuffer: 10 * 1024 * 1024,
+    }).toString();
+    return text;
   } catch (err) {
-    console.error("Extract error:", err.message);
+    console.error("Python extract error:", err.message);
     return "";
   }
 };
 
+// Validate content
 const validateContent = (text, ext) => {
   const trimmed = text.trim();
 
-  // Empty or no text extracted
   if (!trimmed || trimmed.length < 50) {
-    if (ext === "pdf")
-      return {
-        valid: false,
-        msg: "Could not extract text from this PDF. It may be scanned, image-based,No meaningful content, or empty. Please upload a text-based PDF.",
-      };
-    if (ext === "docx" || ext === "doc")
-      return {
-        valid: false,
-        msg: "The Word document appears to be empty or has no readable text.",
-      };
-    if (ext === "txt")
-      return {
-        valid: false,
-        msg: "The text file is empty. Please upload a file with actual content.",
-      };
+    const messages = {
+      pdf:
+        trimmed.length === 0
+          ? " This PDF appears to be empty. Please upload a PDF with actual text content."
+          : "This PDF does not have enough readable text. Please upload a PDF with more content.",
+      docx: " This Word document appears to be empty. Please upload a document with text content.",
+      doc: " Old .doc format is not fully supported. Please save your file as .docx and try again.",
+      pptx: "Could not read text from this presentation. Please make sure your slides contain text (not just images).",
+      ppt: " Old .ppt format is not supported. Please save your presentation as .pptx and try again.",
+      txt:
+        trimmed.length === 0
+          ? " This text file is empty. Please upload a file with actual content."
+          : "This file does not have enough content. Please upload a document with more text.",
+    };
     return {
       valid: false,
-      msg: " The file appears to be empty or has no readable content.",
+      msg:
+        messages[ext] ||
+        " Could not read content from this file. Please try a different file.",
     };
   }
 
-  // Lorem ipsum
+  // Lorem ipsum check
   const loremPatterns = [
     "lorem ipsum",
     "dolor sit amet",
@@ -115,28 +110,21 @@ const validateContent = (text, ext) => {
   )
     return {
       valid: false,
-      msg: " The file contains lorem ipsum placeholder text. Please upload a document with real content.",
+      msg: " This file contains sample placeholder text (lorem ipsum). Please upload a document with real content.",
     };
 
-  // Meaningful words
-  const realWords = trimmed.match(/\b[a-zA-Z]{3,15}\b/g) || [];
-  if (realWords.length < 50)
+  // Count real English words
+  const realWords = trimmed.match(/\b[a-zA-Z]{3,}\b/g) || [];
+  if (realWords.length < 30)
     return {
       valid: false,
-      msg: ` Not enough readable content found (${realWords.length} words). Please upload a document with at least 50 meaningful words.`,
-    };
-
-  // Gibberish/random characters check
-  const avgWordLen = realWords.join("").length / realWords.length;
-  if (avgWordLen > 12)
-    return {
-      valid: false,
-      msg: "The file contains random or unreadable characters. Please upload a proper document with real text.",
+      msg: ` This file does not have enough readable content (${realWords.length} words found). Please upload a document with at least 30 meaningful words.`,
     };
 
   return { valid: true, msg: "OK" };
 };
 
+// POST /api/quiz/generate
 router.post(
   "/generate",
   auth,
@@ -145,7 +133,7 @@ router.post(
       if (err) {
         if (err.message === "IMAGE_NOT_ALLOWED")
           return res.status(400).json({
-            msg: " Images are not supported. Please upload PDF, Word, PowerPoint, or text files.",
+            msg: "Images are not supported. Please upload PDF, Word, PowerPoint, or text files.",
           });
         if (err.message === "FILE_TYPE_NOT_SUPPORTED")
           return res.status(400).json({
@@ -153,7 +141,7 @@ router.post(
           });
         if (err.code === "LIMIT_FILE_SIZE")
           return res.status(400).json({
-            msg: " File too large. Maximum size is 10MB.",
+            msg: "File too large. Maximum size is 10MB.",
           });
         return res.status(400).json({ msg: err.message });
       }
@@ -183,18 +171,19 @@ router.post(
         ` File: ${req.file.originalname} | Ext: .${ext} | Size: ${req.file.size} bytes`,
       );
 
-      // Step 1: Extract text
-      const text = await extractText(filePath, ext);
+      // Step 1: Extract text using Python
+      const text = extractText(filePath);
       console.log(` Extracted: ${text.length} chars`);
+      console.log(`First 200 chars: ${text.slice(0, 200)}`);
 
       // Step 2: Validate
       const { valid, msg } = validateContent(text, ext);
       if (!valid) {
-        console.log(`${msg}`);
+        console.log(` Validation failed: ${msg}`);
         cleanup();
         return res.status(400).json({ msg });
       }
-      console.log(`Valid content — ${text.trim().length} chars`);
+      console.log(`Valid — ${text.trim().length} chars`);
 
       // Step 3: Upload to Cloudinary
       const cloudResult = await cloudinary.uploader.upload(filePath, {
@@ -205,11 +194,11 @@ router.post(
       cleanup();
       console.log(" Uploaded to Cloudinary");
 
-      // Step 4: Send text to AI
+      // Step 4: Send text to AI — send more context for better questions
       const aiRes = await axios.post(
         `${process.env.AI_SERVICE_URL}/generate`,
         {
-          text: text.slice(0, 4000),
+          text: text.slice(0, 5000),
           num_questions: parseInt(req.body.num_questions) || 5,
         },
         { timeout: 120000 },
@@ -229,7 +218,7 @@ router.post(
         sourceFile: cloudResult.secure_url,
       });
 
-      console.log(`Quiz created: ${quiz._id}`);
+      console.log(` Quiz created: ${quiz._id}`);
       res.json(quiz);
     } catch (err) {
       cleanup();
@@ -245,6 +234,7 @@ router.post(
   },
 );
 
+// POST /api/quiz/manual
 router.post("/manual", auth, async (req, res) => {
   try {
     const { title, questions } = req.body;
@@ -264,6 +254,7 @@ router.post("/manual", auth, async (req, res) => {
   }
 });
 
+// GET /api/quiz
 router.get("/", auth, async (req, res) => {
   try {
     const quizzes = await Quiz.find({ createdBy: req.user.id }).sort({
@@ -275,27 +266,16 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-
 // DELETE /api/quiz/:id
-router.delete('/:id', auth, async (req, res) => {
+router.delete("/:id", auth, async (req, res) => {
   try {
-    const quiz = await Quiz.findOne({ _id: req.params.id, createdBy: req.user.id });
-    if (!quiz) return res.status(404).json({ msg: 'Quiz not found' });
+    const quiz = await Quiz.findOne({
+      _id: req.params.id,
+      createdBy: req.user.id,
+    });
+    if (!quiz) return res.status(404).json({ msg: "Quiz not found" });
     await Quiz.findByIdAndDelete(req.params.id);
-    res.json({ msg: 'Quiz deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ msg: err.message });
-  }
-});
-
-
-// DELETE /api/quiz/:id
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const quiz = await Quiz.findOne({ _id: req.params.id, createdBy: req.user.id });
-    if (!quiz) return res.status(404).json({ msg: 'Quiz not found' });
-    await Quiz.findByIdAndDelete(req.params.id);
-    res.json({ msg: 'Quiz deleted successfully' });
+    res.json({ msg: "Quiz deleted successfully" });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

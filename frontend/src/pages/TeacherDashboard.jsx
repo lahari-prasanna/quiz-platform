@@ -42,7 +42,7 @@ export default function TeacherDashboard() {
   const handleGenerate = async (e) => {
     e.preventDefault();
     if (!file) { setMsg('Please select a PDF file'); setMsgType('error'); return; }
-    setLoading(true); setMsg('⏳ Uploading file to cloud...'); setMsgType('info');
+    setLoading(true); setMsg('Generating Quiz...'); setMsgType('info');
     try {
       const formData = new FormData();
       formData.append('pdf', file); formData.append('title', title || file.name); formData.append('num_questions', numQ);
