@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'https://quiz-platform-backend-bgiv.onrender.com';
+const SOCKET_URL = 'https://quiz-platform-backend-service.onrender.com';
 
 export default function TeacherLiveSession() {
   const { state } = useLocation();
